@@ -8,7 +8,7 @@ Goal:
 - save results into companies.json
 
 This script uses:
-- DuckDuckGo HTML search
+- Google Search API HTML search
 - simple pattern matching
 
 No API keys required.
@@ -30,6 +30,7 @@ import re
 import time
 from dataclasses import dataclass, asdict
 from typing import List, Optional
+import os
 
 import requests
 from bs4 import BeautifulSoup
@@ -39,16 +40,26 @@ from bs4 import BeautifulSoup
 # CONFIG
 # -----------------------------------
 
+
+# list of company names to discover
 COMPANY_NAMES = [
     "Stripe",
     "Figma",
-    "Notion",
-    "OpenAI",
+    "Google",
+    "Amazon",
+    "Meta",
+    "Netflix",
     "Datadog",
+    "Databricks",
+    "CapitalOne",
+    "Notion"
 ]
 
+
+# read output into this file
 OUTPUT_FILE = "companies.json"
 
+# delay to avoid hitting rate limits
 SEARCH_DELAY_SECONDS = 2
 
 
@@ -56,6 +67,8 @@ SEARCH_DELAY_SECONDS = 2
 # MODELS
 # -----------------------------------
 
+
+## structure to hold the retrieved company info
 @dataclass
 class CompanyRecord:
     company: str
@@ -67,7 +80,9 @@ class CompanyRecord:
 # HELPERS
 # -----------------------------------
 
+# source type detection based on patterns found in URL
 def detect_source_type(url: str) -> str:
+
     url = url.lower()
 
     if "greenhouse.io" in url:
@@ -85,6 +100,7 @@ def detect_source_type(url: str) -> str:
     return "generic"
 
 
+# remove any unnecessary query parameters or fragments from the URL
 def clean_url(url: str) -> str:
     url = url.strip()
 
@@ -95,54 +111,56 @@ def clean_url(url: str) -> str:
     return url
 
 
-def duckduckgo_search(query: str) -> Optional[str]:
-    """
-    Uses DuckDuckGo HTML search.
-    """
-    search_url = "https://html.duckduckgo.com/html/"
+SERP_API_KEY = os.getenv("SERP_API_KEY")
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (compatible; CareerAgent/1.0)"
-        )
+
+def google_search(query: str):
+    url = "https://serpapi.com/search"
+
+    params = {
+        "engine": "google",
+        "q": query,
+        "api_key": SERP_API_KEY,
     }
 
-    response = requests.post(
-        search_url,
-        data={"q": query},
-        headers=headers,
-        timeout=20,
+    response = requests.get(
+        url,
+        params=params,
+        timeout=30,
     )
 
     response.raise_for_status()
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    data = response.json()
 
-    results = soup.select(".result__a")
+    results = data.get("organic_results", [])
 
     for result in results:
-        href = result.get("href")
+        print(result)
+        link = result.get("link")
 
-        if not href:
+        if not link:
             continue
 
-        href = clean_url(href)
+        link_lower = link.lower()
+        clean_url(link_lower)
 
-        # prioritize common careers platforms
         if any(
-            keyword in href.lower()
-            for keyword in [
-                "greenhouse",
-                "lever",
-                "ashby",
+            pattern in link_lower
+            for pattern in [
+                "search"
+                "job-search",
+                "jobs/search",
+                "all-jobs",
+                "open-positions",
                 "careers",
-                "jobs",
+                "careers/search",
+                "openings",
             ]
         ):
-            return href
+            return link
 
     return None
-
 
 # -----------------------------------
 # MAIN DISCOVERY LOGIC
@@ -151,16 +169,15 @@ def duckduckgo_search(query: str) -> Optional[str]:
 def discover_company(company_name: str) -> Optional[CompanyRecord]:
     print(f"[searching] {company_name}")
 
+
+    ## Google's HTML search is more likely to find the careers page than DuckDuckGo's API
     queries = [
-        f"{company_name} careers",
-        f"{company_name} jobs",
-        f"{company_name} greenhouse",
-        f"{company_name} lever",
+        f"{company_name} see open job listings",
     ]
 
     for query in queries:
         try:
-            url = duckduckgo_search(query)
+            url = google_search(query)
 
             if not url:
                 continue
