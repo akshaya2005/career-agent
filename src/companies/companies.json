@@ -1,0 +1,27 @@
+[
+  {
+    "company": "Stripe",
+    "url": "https://stripe.com/jobs",
+    "source_type": "generic"
+  },
+  {
+    "company": "Figma",
+    "url": "https://www.figma.com/careers/",
+    "source_type": "generic"
+  },
+  {
+    "company": "Notion",
+    "url": "https://www.notion.com/careers",
+    "source_type": "generic"
+  },
+  {
+    "company": "OpenAI",
+    "url": "https://openai.com/careers/",
+    "source_type": "generic"
+  },
+  {
+    "company": "Datadog",
+    "url": "https://careers.datadoghq.com/",
+    "source_type": "generic"
+  }
+]
